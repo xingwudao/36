@@ -1,6 +1,3 @@
-#!/usr/bin/python3.5
-# -*- coding:utf-8 -*-
-
 """
 GBDT + LR Example
 """
@@ -72,15 +69,20 @@ class GBDTClassifier(object):
                                      max_leaf_nodes=leaf_bodes,
                                      colsample_bytree=0.5)
 
-    def __make_onehot_for_estimator(self, data):
+    def __apply(self, data):
         assert self.__classifier is not None
-        applied_data = None
-        if  self.__pkg_name == 'sklearn':
-            applied_data = self.__classifier.apply(data)[:, :, 0]
-        elif self.__pkg_name == 'xgboost':
-            applied_data = self.__classifier.apply(data)[:, :]
+        applied_data = self.__classifier.apply(data)
+        if self.__pkg_name == 'sklearn':
+            applied_data = applied_data[:, :, 0]
+        return applied_data
+
+    def __fit_onehot_encoder(self, data):
+        applied_data = self.__apply(data)
         assert applied_data is not None
         self.__feature_encoder.fit(applied_data)
+
+    def __transform_onehot_feature(self, data):
+        applied_data = self.__apply(data)
         encoded_feature = self.__feature_encoder.transform(applied_data).toarray()
         return encoded_feature
 
@@ -91,7 +93,7 @@ class GBDTClassifier(object):
             lables : shape is [n_samples, ]
             split_rate: rate to split train and test dataset
         returns:
-            transformed features of original dataset
+                transformed features of original dataset
         '''
         assert samples.shape[0] == lables.shape[0]
         train_count = int(samples.shape[0] * split_rate)
@@ -104,7 +106,8 @@ class GBDTClassifier(object):
         test_prob = [prob[1] for prob in test_prob]
         auc = roc_auc_score(test_lables, test_prob)
         print('gbdt with %s model , get auc = %.5f' % (self.__pkg_name, auc))
-        return self.__make_onehot_for_estimator(samples)
+        self.__fit_onehot_encoder(samples)
+        return self.__transform_onehot_feature(samples)
 
     def predict(self, data):
         ''' predict class
@@ -122,7 +125,7 @@ class GBDTClassifier(object):
         return:
             shape is [n_samples, n_transformed_features]
         '''
-        return self.__make_onehot_for_estimator(data)
+        return self.__transform_onehot_feature(data)
 
 class GBDTLRPipeline(object):
 
