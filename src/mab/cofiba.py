@@ -143,15 +143,18 @@ class Cofiba(object):
         user_cb = np.sqrt(np.dot(np.dot(feature, self._users[uid]._AI),  feature)) 
         trials_alpha = np.sqrt(np.log10(self._trials + 1))
         for j in range(n):
-            other_user_expected_reward = np.dot(self._users[j]._theta, feature)
-            other_user_cb = np.sqrt(np.dot(np.dot(feature, self._users[j]._AI), feature))
-            center_distance = math.fabs(user_expected_reward - other_user_expected_reward)
-            bounds = self.alpha_2 * (user_cb + other_user_cb) * trials_alpha
+            theta = self._users[j]._theta
+            AI = self._users[j]._AI
+            expected_reward = np.dot(theta, feature)
+            user_cb = np.sqrt(np.dot(np.dot(feature, AI), feature))
+            center_distance = math.fabs(user_expected_reward - expected_reward)
+            bounds = self.alpha_2 * (user_cb + user_cb) * trials_alpha
             if center_distance > bounds:
                 self._user_raph[item_cluster_index][uid][j] = 0
                 self._user_graph[item_cluster_index][j][uid] = 0
 
-        cluster_count, user_clusters = cc(csr_matrix(self._user_graph[item_cluster_index]))
+        user_graph = csr_matrix(self._user_graph[item_cluster_index])
+        cluster_count, user_clusters = cc(user_graph)
         self._user_clusters[item_cluster_index] = user_clusters
         return cluster_count
 
@@ -161,17 +164,20 @@ class Cofiba(object):
         user_neighbor = {}
         item_cluster_index = self.get_item_cluster(item_selected)
         trials_alpha = np.sqrt(np.log10(self._trials + 1))
+        AI1 = self._users[uid]._AI
         for item in items:
             if self._item_graph[items[item_selected].id][item._id] == 1:
                 user_neighbor[item._id] = np.ones([n,n])
                 for i in range(n):
-                    center_distance = math.fabs(np.dot(self._users[uid]._theta, item._feature)
-                                     - np.dot( self._users[i]._theta, item._feature))
-                    user_expected_reward = np.sqrt(np.dot(np.dot(item._feature, self._users[uid]._AI),
-                                                          item._feature))
-                    other_user_expected_reward = np.sqrt(np.dot(np.dot(item._feature, self._users[i]._AI),
-                                                                item._feature))
-                    bounds = self.alpha_2 * (user_expected_reward + other_user_expected_reward)
+                    theta1 = self._users[uid]._theta
+                    feature = item._feature
+                    theta2 = self._users[i]._theta
+                    center_distance = math.fabs(np.dot(theta1, feature)
+                                     - np.dot(theta2, feature))
+                    AI2 = self._users[i]._AI
+                    expected_reward1 = np.sqrt(np.dot(np.dot(feature, AI1), feature))
+                    expected_reward2 = np.sqrt(np.dot(np.dot(feature, AI2), feature))
+                    bounds = self.alpha_2 * (expected_reward1 + expected_reward2)
                     bounds *= trials_alpha
                     if center_distance > bounds:
                         user_neighbor[item._id][uid][i] = 0
@@ -180,25 +186,28 @@ class Cofiba(object):
                                       self._user_graph[item_cluster_index]):
                     self._item_graph[item_selected._id][item._id] = 0
                     self._item_graph[item._id][item_selected._id] = 0
-        self._cluster_count_of_item, self._item_clusters = cc(csr_matrix(self._item_graph))
+        item_graph = csr_matrix(self._item_graph)
+        self._cluster_count_of_item, self._item_clusters = cc(item_graph)
 
         self._user_graph = []
         self._user_clusters = []
+        n = self._user_count
         for i in range(self._cluster_count_of_item):
-            self._user_graph.append(np.ones([len(self._users), len(self._users)]) )
-            cluster_count_of_user, user_clusters = cc(csr_matrix(self._user_graph[i]))
+            self._user_graph.append(np.ones([n, n]))
+            cluster_count, user_clusters = cc(csr_matrix(self._user_graph[i]))
             self._user_clusters.append(user_clusters)
         return self._cluster_count_of_item
 
 if __name__ == '__main__':
     lambda_ = 0.1
     alpha  = 0.2
-    dimension = 5
+    d = 5
     alpha_2 = 2.0
     item_count = 100
     user_count = 100
-    items = [Item(i, np.random.rand(dimension), np.random.rand()) for i in range(item_count)]
-    cofiba = Cofiba(d = dimension,
+    items = [Item(i, np.random.rand(d), np.random.rand())
+                for i in range(item_count)]
+    cofiba = Cofiba(d = d,
                     alpha = alpha,
                     alpha_2 = alpha_2,
                     lambda_ = lambda_,
